@@ -4,7 +4,7 @@ __author__ = 'leohuang'
 __date__ = '2016/3/2'
 __version__ = '0.1-dev'
 
-import urllib
+import urllib.request, urllib.parse, urllib.error
 import re
 import requests
 import PyV8
@@ -37,16 +37,16 @@ class QQ_Login:
             if check_flag:
                 login_flag, login_msg = self.login()
                 if login_flag:
-                    print "User %s login Ok, nickname: %s" %(self.uin, self.nick)
-                    print "Cookie info:"
+                    print("User %s login Ok, nickname: %s" %(self.uin, self.nick))
+                    print("Cookie info:")
                     for c in self.session.cookies:
-                        print c
+                        print(c)
                 else:
-                    print login_msg
+                    print(login_msg)
             else:
-                print check_msg
+                print(check_msg)
         else:
-            print sig_msg
+            print(sig_msg)
 
     def get_signature(self):
         """
@@ -57,7 +57,7 @@ class QQ_Login:
             "appid": self.appid,
             "s_url": self.urlSuccess,
         }
-        params = urllib.urlencode(params)
+        params = urllib.parse.urlencode(params)
         url = "%s?%s" %(self.urlRaw, params)
         r = self.session.get(url)
         if 200 != r.status_code:
@@ -86,7 +86,7 @@ class QQ_Login:
             "login_sig": self.login_sig,
             "u1": self.urlSuccess,
         }
-        params = urllib.urlencode(params)
+        params = urllib.parse.urlencode(params)
         url = "%s?%s" %(self.urlCheck, params)
         r = self.session.get(url)
         if 200 != r.status_code:
@@ -139,7 +139,7 @@ class QQ_Login:
             'daid': 5,
             'login_sig': self.login_sig,
         }
-        params = urllib.urlencode(params)
+        params = urllib.parse.urlencode(params)
         url = "%s?%s" %(self.urlLogin, params)
         r = self.session.get(url)
         if 200 != r.status_code:

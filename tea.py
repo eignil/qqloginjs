@@ -20,7 +20,7 @@ __all__ = ['encrypt', 'decrypt']
 
 seed()
 
-op = 0xffffffffL
+op = 0xffffffff
 
 
 def xor(a, b):
@@ -45,11 +45,11 @@ def code(v, k):
     'a557272c538d3e96'
     """
     n=16  #qq use 16
-    delta = 0x9e3779b9L
+    delta = 0x9e3779b9
     k = _unpack('>LLLL', k[0:16])
     y, z = _unpack('>LL', v[0:8])
     s = 0
-    for i in xrange(n):
+    for i in range(n):
         s += delta
         y += (op &(z<<4))+ k[0] ^ z+ s ^ (op&(z>>5)) + k[1] ;
         y &= op
@@ -115,7 +115,7 @@ def encrypt(v, k):
     vl = len(v)
     filln = (8-(vl+2))%8 + 2;
     fills = ''
-    for i in xrange(filln):
+    for i in range(filln):
         fills = fills + chr(_randint(0, 0xff))
     v = ( chr((filln -2)|FILL_N_OR)
           + fills
@@ -126,7 +126,7 @@ def encrypt(v, k):
     r = ''
     o = '\0' * 8
     #print 'len(v)=', len(v)
-    for i in xrange(0, len(v), 8):
+    for i in range(0, len(v), 8):
         o = xor(v[i:i+8], tr)
         tr = xor( code(o, k), to)
         to = o
@@ -187,10 +187,10 @@ def decrypt(v, k):
     #if l%8 !=0 or l<16:
     #    return ''
     prePlain = decipher(v, k)
-    pos = (ord(prePlain[0]) & 0x07L) +2
+    pos = (ord(prePlain[0]) & 0x07) +2
     r = prePlain
     preCrypt = v[0:8]
-    for i in xrange(8, l, 8):
+    for i in range(8, l, 8):
         x = xor(decipher(xor(v[i:i+8], prePlain),k ), preCrypt)
         prePlain = xor(x, preCrypt)
         preCrypt = v[i:i+8]
@@ -213,9 +213,9 @@ def decipher(v, k):
     n = 16
     y, z = _unpack('>LL', v[0:8])
     a, b, c, d = _unpack('>LLLL', k[0:16])
-    delta = 0x9E3779B9L;
+    delta = 0x9E3779B9;
     s = (delta << 4)&op
-    for i in xrange(n):
+    for i in range(n):
         z -= ((y<<4)+c) ^ (y+s) ^ ((y>>5) + d)
         z &= op
         y -= ((z<<4)+a) ^ (z+s) ^ ((z>>5) + b)
