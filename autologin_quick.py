@@ -34,6 +34,13 @@ class QQ_Quick_Login:
     urlQzoneSuccess = 'http://qzs.qq.com/qzone/v5/loginsucc.html?para=izone'
     urlUserQzone = "http://user.qzone.qq.com"
     urlgQzone = "http://g.qzone.qq.com"
+    headers = {
+            "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Encoding":"gzip, deflate",
+            "Accept-Language":"zh-CN,zh;q=0.8,en;q=0.6,zh-TW;q=0.4,ja;q=0.2",
+            "Connection":"keep-alive",
+            "User-Agent":"Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36"
+    }
 
 
     def __init__(self, uin=None, pwd=None):
@@ -126,7 +133,7 @@ class QQ_Quick_Login:
         try:
             r = self.session.get(url, timeout=120)
             if 200 != r.status_code:
-                error_msg = "[Get client unis error] %s %s" %(r.status_code, url)
+                error_msg = "[Get client unis error] status_code:%s url:%s" %(r.status_code, url)
                 print(error_msg)
                 return [False, error_msg]
             else:
@@ -153,7 +160,7 @@ class QQ_Quick_Login:
                 return [True, ""]
 
         except Exception as e:
-            error_msg = "[Get client unis error] %s %s" %(url, str(e))
+            error_msg = "[Get client unis error] error:%s url:%s" %(str(e),url)
             return [False, error_msg]
 
 
@@ -344,6 +351,11 @@ class QQ_Quick_Login:
 
 
     def request_emotion(self,target_qq_number):
+        '''
+        增加访问记录
+        :param target_qq_number:
+        :return:
+        '''
         headers = {
             "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
             "Accept-Encoding":"gzip, deflate",
@@ -373,8 +385,7 @@ class QQ_Quick_Login:
             print(r.text)
             return [True,r.text]
 
-    def parse_visitors(self,ori_data):
-        visitor = []
+    def parse_callback(self,ori_data):
         if ori_data:
             start_ =ori_data.find('(')
             end_=ori_data.rfind(')')
@@ -382,28 +393,27 @@ class QQ_Quick_Login:
                 real_data = ori_data[start_+1:end_]
                 data=eval(real_data)
                 if data["code"]==0:
-                    data = data["data"]["items"]
-                    for ele in data:
-                        visitor.append({'name':ele['name'],'uin':ele['uin']})
-                    return [True,visitor]
+                    return [True,data]
                 else:
                     logging.error(data)
                     #抱歉，服务繁忙，请稍后再试。
                     if data['code']==-4016:
                         return [False,data['code']]
-        return [False,visitor]
+        return [False,""]
 
-
+    def parse_visitors(self,ori_data):
+        visitor = []
+        resp,data = self.parse_callback(ori_data)
+        if resp:
+            data = data["data"]["items"]
+            for ele in data:
+                visitor.append({'name':ele['name'],'uin':ele['uin']})
+            return [True,visitor]
+        else:
+            return [resp,data]
 
 
     def get_visitor(self,target_qq_number):
-        headers = {
-            "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Encoding":"gzip, deflate",
-            "Accept-Language":"zh-CN,zh;q=0.8,en;q=0.6,zh-TW;q=0.4,ja;q=0.2",
-            "Connection":"keep-alive",
-            "User-Agent":"Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36"
-        }
         g_tk = self.getACSRFToken(self.urlUserQzone)
         params = {
             "uin":target_qq_number,
@@ -416,7 +426,7 @@ class QQ_Quick_Login:
         url = "%s/%s?%s" %("https://h5s.qzone.qq.com","proxy/domain/g.qzone.qq.com/cgi-bin/friendshow/cgi_get_visitor_simple",params)
         print(url)
 
-        r = self.session.get(url, timeout=120, headers=headers)
+        r = self.session.get(url, timeout=120, headers=self.headers)
         if 200 != r.status_code:
             error_msg = "[Get visitor list error] %s %s" %(r.status_code, url)
             print(error_msg)
@@ -424,6 +434,73 @@ class QQ_Quick_Login:
         else:
             _data = r.text
             return self.parse_visitors(_data)
+
+    def get_uins_in_comments(self,common_list,exist_uins=[]):
+        visitors = []
+        for ele in common_list:
+            if "uin" in ele and int(ele['uin']) not in exist_uins:
+                visitors.append({'name':ele['nickname'],'uin':ele['uin']})
+                exist_uins.append(int(ele['uin']))
+            if "replyList" in ele and len(ele["replyList"])>0:
+                reply_list = ele["replyList"]
+                res,inner_vistors = self.get_uins_in_comments(reply_list,exist_uins)
+                if len(inner_vistors)>0:
+                    visitors.extend(inner_vistors)
+        return [True,visitors]
+
+    def parse_comments(self,ori_data):
+        '''
+        :param ori_data:
+        :return:
+        '''
+        visitor = []
+        resp,data = self.parse_callback(ori_data)
+        exist_uins=[]
+        if resp:
+            total = data["data"]["total"]
+            comment_list = data["data"]["commentList"]
+            resp,visitor = self.get_uins_in_comments(comment_list,exist_uins)
+        return [resp,visitor]
+
+
+    def get_message(self,target_uin):
+        '''
+        获取留言板内容。
+        http://m.qzone.qq.com/cgi-bin/new/get_msgb', {
+		uin : LOGIN_UIN,
+		hostUin : SPACE_UIN,
+		start : start,
+		s : Math.random(),
+		format : 'jsonp',
+		num : 10,
+		inCharset : 'utf-8',
+		outCharset : 'utf-8'
+        :param target_uin:
+        :return:
+        '''
+        g_tk = self.getACSRFToken(self.urlUserQzone)
+        params = {
+            "uin":self.uin,
+            "hostUin":target_uin,
+            "start" :0,
+            "s":random.random(),
+            "format":'jsonp',
+            "num" : 10,
+            "inCharset" : 'utf-8',
+            "outCharset" : 'utf-8',
+            "g_tk":g_tk
+        }
+        params = urllib.parse.urlencode(params)
+        url = "%s/%s?%s" %("http://m.qzone.qq.com","cgi-bin/new/get_msgb",params)
+        print(url)
+        r = self.session.get(url, timeout=120, headers=self.headers)
+        if 200 != r.status_code:
+            error_msg = "[Get visitor list error] %s %s" %(r.status_code, url)
+            print(error_msg)
+            return [False, error_msg]
+        else:
+            _data = r.text
+            return self.parse_comments(_data)
 
     def get_visitor_tree(self,root_uin_num,skip_uins=None):
         root_uin = {'uin':root_uin_num,'name':""}
@@ -435,6 +512,8 @@ class QQ_Quick_Login:
             inner_new_uin = []
             for uin in new_uins:
                 res,r = qlogin.get_visitor(uin['uin'])
+                #频繁访问会被block
+                time.sleep(1)
                 visitied_uins_number.append(int(uin['uin']))
                 if res:
                     valid_uins.append(uin)
@@ -461,7 +540,8 @@ target_number = ""
 if status:
     #res,r = qlogin.request_emotion(target_number)
     skip_uins = []
-    res,r = qlogin.get_visitor_tree(target_number,skip_uins)
+    #res,r = qlogin.get_visitor_tree(target_number,skip_uins)
+    res,r = qlogin.get_message(target_number)
     f = open("data/result.text","w",encoding='utf-8')
     f.write(str(r))
     f.close()
